@@ -28,13 +28,13 @@ with st.sidebar:
         # Cloud Foundry specific behavior
         if 'OPENAI_API_KEY' in os.environ:
             st.success('OpenAI API key already provided!', icon='✅')
-            openai_api_key = os.environ['OPENAI_API_KEY']
+            st.session_state.openai_api_key = os.environ['OPENAI_API_KEY']
         else:
             openai_api_key = st.text_input('Enter OpenAI API key:', type='password')
             if openai_api_key:
-                # Set the API key as an environment variable for the session
-                os.environ['OPENAI_API_KEY'] = openai_api_key
-                st.success('API key set for session in Cloud Foundry. Proceed to chat!', icon='👉')
+                # Store the API key in Streamlit session state
+                st.session_state.openai_api_key = openai_api_key
+                st.success('API key stored in session for Cloud Foundry. Proceed to chat!', icon='👉')
             else:
                 st.warning('Please enter your API key!', icon='⚠️')
     else:
@@ -63,7 +63,12 @@ with st.sidebar:
 
 # Load credentials of fetch from variable:
 load_dotenv()
-client = OpenAI()
+
+# Initialize OpenAI client with the API key from session state
+if 'openai_api_key' in st.session_state:
+    client = OpenAI(api_key=st.session_state.openai_api_key)
+else:
+    client = OpenAI()
 
 # Check if assistant and thread are already created
 if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state:
