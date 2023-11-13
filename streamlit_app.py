@@ -1,7 +1,8 @@
 import streamlit as st
 import os
 from dotenv import load_dotenv
-import openai
+from openai import OpenAI
+import time
 
 # Load environment variables
 load_dotenv()
@@ -12,9 +13,6 @@ st.set_page_config(page_title="🤗💬 Jewel")
 # OpenAI API Key
 import os
 import streamlit as st
-
-load_dotenv()
-client = OpenAI()
 
 # Start of the Streamlit sidebar
 with st.sidebar:
@@ -63,37 +61,99 @@ with st.sidebar:
 
     st.markdown('🐙 Github: Here\'s the link to the project on Github: https://github.com/JHFVR/glowing-octo-enigma/')
 
-# Store LLM generated responses
-if "messages" not in st.session_state.keys():
-    st.session_state.messages = [{"role": "assistant", "content": "How may I help you?"}]
+# Load credentials of fetch from variable:
+load_dotenv()
+client = OpenAI()
 
-# Display chat messages
-for message in st.session_state.messages:
-    role = message["role"]
-    with st.chat_message(role, avatar='https://raw.githubusercontent.com/JHFVR/jle/main/jle_blue.svg' if role == "assistant" else None):
-        st.write(message["content"])
-
-# Function for generating LLM response
-def generate_response(prompt_input, api_key):
-    openai.api_key = api_key
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt_input,
-        max_tokens=150
+# Check if assistant and thread are already created
+if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state:
+    # Create an assistant and a thread
+    assistant = client.beta.assistants.create(
+        name="Streamlit Jewel",
+        instructions="You are a helpful assistant running within enterprise software. Answer to the best of your knowledge, be truthful if you don't know. Concise answers, no harmful language or unethical replies.",
+        tools=[{"type": "code_interpreter"}],
+        model="gpt-4-1106-preview"
     )
-    return response.choices[0].text.strip()
+    thread = client.beta.threads.create()
+
+    # Store the IDs in session state
+    st.session_state.assistant_id = assistant.id
+    st.session_state.thread_id = thread.id
+else:
+    # Use existing IDs
+    assistant_id = st.session_state.assistant_id
+    thread_id = st.session_state.thread_id
+
+def display_messages(thread_id):
+    thread_messages = client.beta.threads.messages.list(thread_id).data
+    # Reverse the order of messages for display
+    thread_messages.reverse()
+    # Clear previous messages (if any)
+    if 'message_display' in st.session_state:
+        for container in st.session_state.message_display:
+            container.empty()
+    st.session_state.message_display = []
+    for message in thread_messages:
+        role = message.role
+        for content_item in message.content:
+            message_text = content_item.text.value
+            # Store each message container in session state
+            container = st.container()
+            with container:
+                with st.chat_message(role, avatar='https://raw.githubusercontent.com/JHFVR/jle/main/jle_blue.svg' if role == "assistant" else None):
+                    st.write(message_text)
+            st.session_state.message_display.append(container)
+
+# Display an initial greeting message
+if 'initialized' not in st.session_state:
+    with st.chat_message("assistant", avatar='https://raw.githubusercontent.com/JHFVR/jle/main/jle_blue.svg'):
+        st.write("Hi - how may I assist you today?")
+    st.session_state.initialized = False
+
+def wait_on_run(run, thread_id):
+    while run.status == "queued" or run.status == "in_progress":
+        run = client.beta.threads.runs.retrieve(
+            thread_id=thread_id,
+            run_id=run.id,
+        )
+        time.sleep(0.5)
+    return run
 
 # User-provided prompt
 if prompt := st.chat_input(disabled=not openai_api_key):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.write(prompt)
+    if not st.session_state.initialized:
+        # Create an assistant and a thread
+        assistant = client.beta.assistants.create(
+            name="Streamlit Jewel",
+            instructions="You are a helpful assistant running within enterprise software. Answer to the best of your knowledge, be truthful if you don't know. Concise answers, no harmful language or unethical replies.",
+            tools=[{"type": "code_interpreter"}],
+            model="gpt-4-1106-preview"
+        )
+        thread = client.beta.threads.create()
 
-# Generate a new response if last message is not from assistant
-if st.session_state.messages[-1]["role"] != "assistant":
-    with st.chat_message("assistant", avatar='https://raw.githubusercontent.com/JHFVR/jle/main/jle_blue.svg'):
-        with st.spinner("Thinking..."):
-            response = generate_response(prompt, openai_api_key) 
-            st.write(response) 
-    message = {"role": "assistant", "content": response}
-    st.session_state.messages.append(message)
+        # Store the IDs in session state
+        st.session_state.assistant_id = assistant.id
+        st.session_state.thread_id = thread.id
+
+        # Mark as initialized
+        st.session_state.initialized = True
+
+  # Post user message
+    user_message = client.beta.threads.messages.create(
+        thread_id=st.session_state.thread_id,
+        role="user",
+        content=prompt
+    )
+
+    # Create a run for the assistant to process the conversation
+    run = client.beta.threads.runs.create(
+        thread_id=st.session_state.thread_id,
+        assistant_id=st.session_state.assistant_id,
+        instructions="Please address the user appropriately."
+    )
+
+    # Wait for the run to complete
+    completed_run = wait_on_run(run, st.session_state.thread_id)
+
+    # Retrieve and display updated messages
+    display_messages(st.session_state.thread_id)
