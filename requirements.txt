@@ -1,2 +1,3 @@
+dotenv
+openai
 streamlit
-hugchat==0.0.8
