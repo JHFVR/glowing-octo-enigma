@@ -6,5 +6,4 @@ applications:
   memory: 128M
   buildpacks: 
   - python_buildpack
-  command: python streamlit run streamlit_app.py --server.port 8080 --server.enableCORS false
-
+  # command: streamlit run streamlit_app.py --server.port 8080 --server.enableCORS false
