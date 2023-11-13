@@ -32,9 +32,9 @@ with st.sidebar:
         else:
             openai_api_key = st.text_input('Enter OpenAI API key:', type='password')
             if openai_api_key:
-                # Store the API key in a variable
-                instance_variable_openai_api_key = openai_api_key
-                st.success('API key stored in session for Cloud Foundry. Proceed to chat!', icon='👉')
+                # Set the API key as an environment variable for the session
+                os.environ['OPENAI_API_KEY'] = openai_api_key
+                st.success('API key set for session in Cloud Foundry. Proceed to chat!', icon='👉')
             else:
                 st.warning('Please enter your API key!', icon='⚠️')
     else:
