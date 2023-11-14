@@ -18,18 +18,25 @@ def get_db_credentials():
         # Load credentials from .env file or environment for local development
         return os.getenv('HANA_HOST'), os.getenv('HANA_PORT'), os.getenv('HANA_USER'), os.getenv('HANA_PASSWORD')
 
-def hello():
-    host, port, user, password = get_db_credentials()
-    conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
-    cursor = conn.cursor()
-    cursor.execute("select CURRENT_UTCTIMESTAMP from DUMMY", {})
-    ro = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return "Current time is: " + str(ro[0])
+host, port, user, password = get_db_credentials()
+conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
+    
+# Fetch data from the database
+def fetch_data():
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT * FROM Skills")
+        data = cursor.fetchall()
+        return data
 
 # Streamlit app
-st.title('HANA Cloud Connection Example')
-if st.button('Get Current UTC Time'):
-    result = hello()
-    st.write(result)
+st.title('Skills Data')
+
+# Fetch and display the data
+data = fetch_data()
+if data:
+    st.table(data)
+else:
+    st.write("No data found.")
+
+# Close the database connection
+conn.close()
