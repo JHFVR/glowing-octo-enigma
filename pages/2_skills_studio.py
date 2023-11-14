@@ -37,9 +37,31 @@ st.title('Skills Data')
 # Fetch and display the data
 data = fetch_data()
 if not data.empty:
-    st.dataframe(data)  # Use dataframe for better formatting
+    data = data.iloc[:, 1:]  # Drop the first column
+    st.dataframe(data)
 else:
     st.write("No data found.")
+
+# Add Skill Button and Form
+with st.expander("➕ Add Skill"):
+    with st.form("add_skill_form"):
+        skill_name = st.text_input("Skill Name")
+        skill_description = st.text_area("Skill Description")
+        parameters = st.text_area("Parameters (JSON Format)")
+        submit_button = st.form_submit_button("Submit")
+
+        if submit_button:
+            # Insert into database
+            try:
+                with conn.cursor() as cursor:
+                    insert_query = """
+                    INSERT INTO Skills (SkillName, SkillDescription, Parameters) 
+                    VALUES (?, ?, ?)
+                    """
+                    cursor.execute(insert_query, (skill_name, skill_description, parameters))
+                    st.success("Skill added successfully!")
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
 
 # Close the database connection
 conn.close()
