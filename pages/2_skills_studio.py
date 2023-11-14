@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 import streamlit as st
 from cfenv import AppEnv
 from hdbcli import dbapi
@@ -25,16 +26,18 @@ conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
 def fetch_data():
     with conn.cursor() as cursor:
         cursor.execute("SELECT * FROM Skills")
+        columns = [desc[0] for desc in cursor.description]  # This will capture column names
         data = cursor.fetchall()
-        return data
+        df = pd.DataFrame(data, columns=columns)
+        return df
 
 # Streamlit app
 st.title('Skills Data')
 
 # Fetch and display the data
 data = fetch_data()
-if data:
-    st.table(data)
+if not data.empty:
+    st.dataframe(data)  # Use dataframe for better formatting
 else:
     st.write("No data found.")
 
