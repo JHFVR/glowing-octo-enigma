@@ -7,3 +7,5 @@ applications:
   buildpacks: 
   - python_buildpack
   # command: streamlit run streamlit_app.py --server.port 8080 --server.enableCORS false
+  services:
+  - streamlit_app_jvr

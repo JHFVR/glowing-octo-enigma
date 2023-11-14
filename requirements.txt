@@ -1,3 +1,7 @@
 python-dotenv
 openai
 streamlit
+st-pages
+pandas
+hdbcli
+cfenv
