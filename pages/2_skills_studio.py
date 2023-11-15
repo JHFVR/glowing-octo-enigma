@@ -22,7 +22,7 @@ def get_db_credentials():
 host, port, user, password = get_db_credentials()
 conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
     
-# Fetch data from the database 
+# Fetch data from the database
 def fetch_data():
     with conn.cursor() as cursor:
         cursor.execute("SELECT * FROM Skills")
