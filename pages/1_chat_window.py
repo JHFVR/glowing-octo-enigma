@@ -5,6 +5,7 @@ from openai import OpenAI
 import time
 import json
 import pandas as pd
+from octo_packages.functions import get_current_weather
 
 # App title
 st.set_page_config(page_title="Enterprise Assistant", page_icon="💎")
@@ -62,7 +63,26 @@ if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state
     assistant = client.beta.assistants.create(
         name="Streamlit Jewel",
         instructions="You are a helpful assistant running within enterprise software. Answer to the best of your knowledge, be truthful if you don't know. Concise answers, no harmful language or unethical replies.",
-        tools=[{"type": "code_interpreter"}],
+        tools=[
+            {"type": "code_interpreter"},
+            {"type": "function",
+            "function": {
+                "name": "get_current_weather",
+                "description": "Get the current weather in a given location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                    },
+                    "required": ["location"],
+                },
+            },
+        }
+               ],
         model="gpt-4-1106-preview"
     )
     thread = client.beta.threads.create()
@@ -101,33 +121,33 @@ if 'initialized' not in st.session_state:
         st.write("Hi - how may I assist you today?")
     st.session_state.initialized = False
 
+# 
 def wait_on_run(run, thread_id):
     while run.status == "queued" or run.status == "in_progress":
+        print(run.status)
         run = client.beta.threads.runs.retrieve(
             thread_id=thread_id,
             run_id=run.id,
         )
         time.sleep(0.5)
+        if run.status == "requires_action":
+            print(json.loads(run.required_action.submit_tool_outputs.tool_calls[0].function.arguments))
+            generated_python_code = json.loads(run.required_action.submit_tool_outputs.tool_calls[0].function.arguments)['location']
+            result = get_current_weather(generated_python_code)
+            run = client.beta.threads.runs.submit_tool_outputs(
+                thread_id=thread_id,
+                run_id=run.id,
+                tool_outputs=[
+                    {
+                        "tool_call_id": run.required_action.submit_tool_outputs.tool_calls[0].id,
+                        "output": result,
+                    },
+                ]
+            )
     return run
 
 # User-provided prompt
 if prompt := st.chat_input(disabled=not openai_api_key):
-    if not st.session_state.initialized:
-        # Create an assistant and a thread
-        assistant = client.beta.assistants.create(
-            name="Streamlit Jewel",
-            instructions="You are a helpful assistant running within enterprise software. Answer to the best of your knowledge, be truthful if you don't know. Concise answers, no harmful language or unethical replies.",
-            tools=[{"type": "code_interpreter"}],
-            model="gpt-4-1106-preview"
-        )
-        thread = client.beta.threads.create()
-
-        # Store the IDs in session state
-        st.session_state.assistant_id = assistant.id
-        st.session_state.thread_id = thread.id
-
-        # Mark as initialized
-        st.session_state.initialized = True
 
 # Post user message
     user_message = client.beta.threads.messages.create(
