@@ -5,3 +5,4 @@ st-pages
 pandas
 hdbcli
 cfenv
+requests
