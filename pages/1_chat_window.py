@@ -5,13 +5,19 @@ from openai import OpenAI
 import time
 import json
 import pandas as pd
-from octo_packages.functions import get_current_weather
+from octo_packages.functions import get_current_weather, get_fieldglass_approvals
+import requests
 
 # App title
 st.set_page_config(page_title="Enterprise Assistant", page_icon="💎")
 
 # Load environment variables
 load_dotenv()
+
+# Load sap_credentials (not pushed to github but exposed in cloud foundry until we switch to CF env vars)
+# Read the API key from the file
+with open('.sap_credentials', 'r') as file:
+    sap_api_key = file.read().strip()
 
 # Start of the Streamlit sidebar
 with st.sidebar:
@@ -64,25 +70,40 @@ if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state
         name="Streamlit Jewel",
         instructions="You are a helpful assistant running within enterprise software. Answer to the best of your knowledge, be truthful if you don't know. Concise answers, no harmful language or unethical replies.",
         tools=[
-            {"type": "code_interpreter"},
-            {"type": "function",
-            "function": {
-                "name": "get_current_weather",
-                "description": "Get the current weather in a given location",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "The city and state, e.g. San Francisco, CA",
-                        },
-                        "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
-                    },
-                    "required": ["location"],
+                {"type": "code_interpreter"},
+                {"type": "function",
+                    "function": {
+                        "name": "get_current_weather",
+                        "description": "Get the current weather in a given location",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "location": {
+                                    "type": "string",
+                                    "description": "The city and state, e.g. San Francisco, CA"
+                                },
+                                "unit": {
+                                    "type": "string",
+                                    "enum": ["celsius", "fahrenheit"]
+                                }
+                            },
+                            "required": ["location"]
+                        }
+                    }
                 },
-            },
-        }
-               ],
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_fieldglass_approvals",
+                        "description": "Retrieve approvals from the SAP Fieldglass API. The API key is read from a file named '.sap_credentials'.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {},
+                            "required": []
+                        }
+                    }
+                }
+            ],
         model="gpt-4-1106-preview"
     )
     thread = client.beta.threads.create()
@@ -123,27 +144,41 @@ if 'initialized' not in st.session_state:
 
 # 
 def wait_on_run(run, thread_id):
-    while run.status == "queued" or run.status == "in_progress":
+    while run.status in ["queued", "in_progress"]:
         print(run.status)
-        run = client.beta.threads.runs.retrieve(
-            thread_id=thread_id,
-            run_id=run.id,
-        )
+        run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
         time.sleep(0.5)
+
         if run.status == "requires_action":
-            print(json.loads(run.required_action.submit_tool_outputs.tool_calls[0].function.arguments))
-            generated_python_code = json.loads(run.required_action.submit_tool_outputs.tool_calls[0].function.arguments)['location']
-            result = get_current_weather(generated_python_code)
+            tools_to_call = run.required_action.submit_tool_outputs.tool_calls
+            tool_output_array = []
+            for tool in tools_to_call:
+                tool_call_id = tool.id
+                function_name = tool.function.name
+
+                # Call the appropriate function based on the function name
+                if function_name == "get_current_weather":
+                    function_args = json.loads(tool.function.arguments)
+                    output = get_current_weather(**function_args)
+                elif function_name == "get_fieldglass_approvals":
+                    output = get_fieldglass_approvals(sap_api_key)
+                    print(output)
+
+                # Ensure the output is a JSON string
+                if not isinstance(output, str):
+                    output = json.dumps(output)
+
+                if output:
+                    tool_output_array.append({"tool_call_id": tool_call_id, "output": output})
+
+
+            # Submit the tool outputs
             run = client.beta.threads.runs.submit_tool_outputs(
                 thread_id=thread_id,
                 run_id=run.id,
-                tool_outputs=[
-                    {
-                        "tool_call_id": run.required_action.submit_tool_outputs.tool_calls[0].id,
-                        "output": result,
-                    },
-                ]
+                tool_outputs=tool_output_array
             )
+
     return run
 
 # User-provided prompt

@@ -1,3 +1,4 @@
 .env
 .DS_Store
 .vscode/settings.json
+.sap_credentials
