@@ -48,6 +48,8 @@ with st.expander("➕ Add Skill"):
         skill_name = st.text_input("Skill Name")
         skill_description = st.text_area("Skill Description")
         parameters = st.text_area("Parameters (JSON Format)")
+        python_function = st.text_area("Python Function")
+
         submit_button = st.form_submit_button("Submit")
 
         if submit_button:
@@ -55,10 +57,10 @@ with st.expander("➕ Add Skill"):
             try:
                 with conn.cursor() as cursor:
                     insert_query = """
-                    INSERT INTO Skills (SkillName, SkillDescription, Parameters) 
-                    VALUES (?, ?, ?)
+                    INSERT INTO Skills (SkillName, SkillDescription, Parameters, PythonFunction) 
+                    VALUES (?, ?, ?, ?)
                     """
-                    cursor.execute(insert_query, (skill_name, skill_description, parameters))
+                    cursor.execute(insert_query, (skill_name, skill_description, parameters, python_function))
                     st.success("Skill added successfully!")
             except Exception as e:
                 st.error(f"An error occurred: {e}")

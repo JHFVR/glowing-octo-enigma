@@ -147,7 +147,7 @@ def wait_on_run(run, thread_id):
     while run.status in ["queued", "in_progress"]:
         print(run.status)
         run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-        time.sleep(0.5)
+        time.sleep(0.2)
 
         if run.status == "requires_action":
             tools_to_call = run.required_action.submit_tool_outputs.tool_calls
