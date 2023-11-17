@@ -21,7 +21,7 @@ def get_db_credentials():
 
 host, port, user, password = get_db_credentials()
 conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
-    
+
 # Fetch data from the database 
 def fetch_data():
     with conn.cursor() as cursor:
@@ -30,6 +30,19 @@ def fetch_data():
         data = cursor.fetchall()
         df = pd.DataFrame(data, columns=columns)
         return df
+
+def insert_skill_data(skill_name, skill_description, parameters, python_function):
+    try:
+        with conn.cursor() as cursor:
+            insert_query = """
+            INSERT INTO Skills (SkillName, SkillDescription, Parameters, PythonFunction) 
+            VALUES (?, ?, ?, ?)
+            """
+            cursor.execute(insert_query, (skill_name, skill_description, parameters, python_function))
+            conn.commit()  # Important to commit the transaction
+            return "Skill added successfully!"
+    except Exception as e:
+        return f"An error occurred: {e}"
 
 # Streamlit app
 st.title('Skills Data')
@@ -72,18 +85,11 @@ with st.expander("➕ Add Skill"):
         submit_button = st.form_submit_button("Submit")
 
         if submit_button:
-            # Insert into database
-            try:
-                with conn.cursor() as cursor:
-                    insert_query = """
-                    INSERT INTO Skills (SkillName, SkillDescription, Parameters, PythonFunction) 
-                    VALUES (?, ?, ?, ?)
-                    """
-                    cursor.execute(insert_query, (skill_name, skill_description, parameters, python_function))
-                    st.success("Skill added successfully!")
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
-
+            result = insert_skill_data(skill_name, skill_description, parameters, python_function)
+            if result.startswith("Skill added successfully"):
+                st.success(result)
+            else:
+                st.error(result)
 
 # Close the database connection
 conn.close()
