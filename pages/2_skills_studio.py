@@ -45,10 +45,29 @@ else:
 # Add Skill Button and Form
 with st.expander("➕ Add Skill"):
     with st.form("add_skill_form"):
-        skill_name = st.text_input("Skill Name")
-        skill_description = st.text_area("Skill Description")
-        parameters = st.text_area("Parameters (JSON Format)")
-        python_function = st.text_area("Python Function")
+        skill_name = st.text_input("Skill Name", placeholder="e.g., get_current_weather")
+        skill_description = st.text_area("Skill Description", placeholder="Get the current weather in a given location")
+
+        # Increased height for the parameters field
+        parameters_placeholder = '''{
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "The city and state, e.g. San Francisco, CA"
+                },
+                "unit": {
+                    "type": "string",
+                    "enum": ["celsius", "fahrenheit"]
+                }
+            },
+            "required": ["location"]
+        }
+        '''
+        parameters = st.text_area("Parameters (JSON Format)", placeholder=parameters_placeholder, height=330)
+
+        python_function_placeholder = "# Example: def get_current_weather(location, unit):\n#     # Function implementation"
+        python_function = st.text_area("Python Function", placeholder=python_function_placeholder)
 
         submit_button = st.form_submit_button("Submit")
 
@@ -64,6 +83,7 @@ with st.expander("➕ Add Skill"):
                     st.success("Skill added successfully!")
             except Exception as e:
                 st.error(f"An error occurred: {e}")
+
 
 # Close the database connection
 conn.close()
