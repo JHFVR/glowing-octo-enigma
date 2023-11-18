@@ -122,7 +122,10 @@ with st.expander("➕ Add Skill"):
             "required": ["location"]
         }
         '''
-        parameters = st.text_area("Parameters (JSON Format)", help="Define the parameters for this skill in JSON format. If it's just an empty GET request, insert \"{}\". Type remains object. properties are all fields explictly mapped in the prompt. Required is enforced.", placeholder=parameters_placeholder, height=330)
+        parameters = st.text_area("Parameters (JSON Format)", 
+                                help="""Define the parameters for this skill in JSON format. If it's just an empty GET request, insert "{\\"type\\": \\"object\\", \\"properties\\": {}}". Type remains object. properties are all fields explicitly mapped in the prompt. Required is enforced.""", 
+                                placeholder=parameters_placeholder, 
+                                height=330)
 
         # Python Function with inline explanation
         python_function_placeholder = """def get_current_weather(location, unit=\"fahrenheit\"):

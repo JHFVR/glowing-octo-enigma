@@ -51,7 +51,7 @@ conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
 def fetch_skill_details():
     try:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT SKILLNAME, SKILLDESCRIPTION, PARAMETERS FROM YourSkillsTable")
+            cursor.execute("SELECT SKILLNAME, SKILLDESCRIPTION, PARAMETERS FROM SKILLS")
             return cursor.fetchall()
     except Exception as e:
         print(f"An error occurred: {e}")
@@ -105,19 +105,28 @@ else:
 if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state:
     
     skill_details = fetch_skill_details()
-
+    print(skill_details)
     tools = [{"type": "code_interpreter"}]  # Starting with the code interpreter tool
 
     for skill_name, skill_description, parameters in skill_details:
+        try:
+            # Load parameters if not empty, else set to empty dict
+            parameters_data = json.loads(parameters) if parameters.strip() else {}
+        except json.JSONDecodeError:
+            # Fallback to empty dict if JSON parsing fails
+            parameters_data = {}
+
         tool = {
             "type": "function",
             "function": {
                 "name": skill_name,
                 "description": skill_description,
-                "parameters": json.loads(parameters)  # Assuming parameters are stored as JSON strings
+                "parameters": parameters_data
             }
-        }
-        tools.append(tool)
+    }
+    tools.append(tool)
+
+    print(tools)
 
     # Create an assistant and a thread
     assistant = client.beta.assistants.create(
