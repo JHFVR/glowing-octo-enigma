@@ -7,6 +7,16 @@ import json
 import pandas as pd
 from octo_packages.functions import get_current_weather, get_fieldglass_approvals
 import requests
+import importlib
+
+# Assuming functions are in 'octo_packages.functions'
+functions_module = importlib.import_module("octo_packages.functions")
+
+## for the lovely logs, to be removed later. list all functions imported
+import inspect
+# List all functions in the module
+functions_list = [f for f in dir(functions_module) if callable(getattr(functions_module, f)) and inspect.isfunction(getattr(functions_module, f))]
+print("Loaded functions:", functions_list)
 
 # App title
 st.set_page_config(page_title="Enterprise Assistant", page_icon="💎")
