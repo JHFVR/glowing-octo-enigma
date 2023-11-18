@@ -46,22 +46,26 @@ def insert_skill_data(skill_name, skill_description, parameters, python_function
 
 # Streamlit app
 st.title('Skills Data')
+st.markdown('➡️ Scroll right to see more details of each skill')
 
 # Fetch and display the data
 data = fetch_data()
 if not data.empty:
     data = data.iloc[:, 1:]  # Drop the first column
-    st.dataframe(data)
+    st.dataframe(data, width=1100)
 else:
     st.write("No data found.")
 
 # Add Skill Button and Form
 with st.expander("➕ Add Skill"):
     with st.form("add_skill_form"):
-        skill_name = st.text_input("Skill Name", placeholder="e.g., get_current_weather")
-        skill_description = st.text_area("Skill Description", placeholder="Get the current weather in a given location")
+        # Skill Name with inline explanation
+        st.text_input("Skill Name", help="The skills name must be exactly the same as the Python function you will define below.", placeholder="e.g., get_current_weather")
 
-        # Increased height for the parameters field
+        # Skill Description with inline explanation
+        st.text_area("Skill Description", help="Describe what this skill does.", placeholder="Get the current weather in a given location")
+
+        # Parameters with inline explanation
         parameters_placeholder = '''{
             "type": "object",
             "properties": {
@@ -77,10 +81,11 @@ with st.expander("➕ Add Skill"):
             "required": ["location"]
         }
         '''
-        parameters = st.text_area("Parameters (JSON Format)", placeholder=parameters_placeholder, height=330)
+        st.text_area("Parameters (JSON Format)", help="Define the parameters for this skill in JSON format. If it's just an empty GET request, insert \"{}\". Type remains object. properties are all fields explictly mapped in the prompt. Required is enforced.", placeholder=parameters_placeholder, height=330)
 
+        # Python Function with inline explanation
         python_function_placeholder = "# Example: def get_current_weather(location, unit):\n#     # Function implementation"
-        python_function = st.text_area("Python Function", placeholder=python_function_placeholder)
+        st.text_area("Python Function", help="Define the parameters for this skill in JSON format.", placeholder=python_function_placeholder)
 
         submit_button = st.form_submit_button("Submit")
 
