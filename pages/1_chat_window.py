@@ -57,7 +57,6 @@ def fetch_skill_details():
         print(f"An error occurred: {e}")
         return []
 
-
 # Start of the Streamlit sidebar
 with st.sidebar:
     # Streamlit UI setup for title
@@ -104,45 +103,27 @@ else:
 
 # Check if assistant and thread are already created
 if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state:
+    
+    skill_details = fetch_skill_details()
+
+    tools = [{"type": "code_interpreter"}]  # Starting with the code interpreter tool
+
+    for skill_name, skill_description, parameters in skill_details:
+        tool = {
+            "type": "function",
+            "function": {
+                "name": skill_name,
+                "description": skill_description,
+                "parameters": json.loads(parameters)  # Assuming parameters are stored as JSON strings
+            }
+        }
+        tools.append(tool)
+
     # Create an assistant and a thread
     assistant = client.beta.assistants.create(
         name="Streamlit Jewel",
         instructions="You are a helpful assistant running within enterprise software. Answer to the best of your knowledge, be truthful if you don't know. Concise answers, no harmful language or unethical replies.",
-        tools=[
-                {"type": "code_interpreter"},
-                {"type": "function",
-                    "function": {
-                        "name": "get_current_weather",
-                        "description": "Get the current weather in a given location",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "location": {
-                                    "type": "string",
-                                    "description": "The city and state, e.g. San Francisco, CA"
-                                },
-                                "unit": {
-                                    "type": "string",
-                                    "enum": ["celsius", "fahrenheit"]
-                                }
-                            },
-                            "required": ["location"]
-                        }
-                    }
-                },
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "get_fieldglass_approvals",
-                        "description": "Retrieve approvals from the SAP Fieldglass API. The API key is read from a file named '.sap_credentials'.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {},
-                            "required": []
-                        }
-                    }
-                }
-            ],
+        tools=tools,
         model="gpt-4-1106-preview"
     )
     thread = client.beta.threads.create()
