@@ -8,6 +8,9 @@ import pandas as pd
 from octo_packages.functions import get_current_weather, get_fieldglass_approvals
 import requests
 import importlib
+from cfenv import AppEnv
+from hdbcli import dbapi
+from dotenv import load_dotenv
 
 # Assuming functions are in 'octo_packages.functions'
 functions_module = importlib.import_module("octo_packages.functions")
@@ -28,6 +31,32 @@ load_dotenv()
 # Read the API key from the file
 with open('.sap_credentials', 'r') as file:
     sap_api_key = file.read().strip()
+
+## get HANA connection in to pull skills and build tools
+def get_db_credentials():
+    # Check if running on Cloud Foundry
+    if 'VCAP_SERVICES' in os.environ:
+        env = AppEnv()
+        hana_service = env.get_service(label='hana')
+        credentials = hana_service.credentials
+        return credentials['host'], credentials['port'], credentials['user'], credentials['password']
+    else:
+        # Load credentials from .env file or environment for local development
+        return os.getenv('HANA_HOST'), os.getenv('HANA_PORT'), os.getenv('HANA_USER'), os.getenv('HANA_PASSWORD')
+
+host, port, user, password = get_db_credentials()
+conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
+
+# get skills data to build tools
+def fetch_skill_details():
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT SKILLNAME, SKILLDESCRIPTION, PARAMETERS FROM YourSkillsTable")
+            return cursor.fetchall()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return []
+
 
 # Start of the Streamlit sidebar
 with st.sidebar:
