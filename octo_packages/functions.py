@@ -1,61 +1,67 @@
-from cfenv import AppEnv
-from hdbcli import dbapi
-from dotenv import load_dotenv
-import os
-import json 
-import requests
-import re
+### globals from this file won't transport to the other... i could only write to a shared ressource aka a file..
 
-# Load .env file if it exists for local development
-load_dotenv()
+# from cfenv import AppEnv
+# from hdbcli import dbapi
+# from dotenv import load_dotenv
+# import os
+# import json 
+# import requests
+# import re
 
-def get_db_credentials():
-    # Check if running on Cloud Foundry
-    if 'VCAP_SERVICES' in os.environ:
-        env = AppEnv()
-        hana_service = env.get_service(label='hana')
-        credentials = hana_service.credentials
-        return credentials['host'], credentials['port'], credentials['user'], credentials['password']
-    else:
-        # Load credentials from .env file or environment for local development
-        return os.getenv('HANA_HOST'), os.getenv('HANA_PORT'), os.getenv('HANA_USER'), os.getenv('HANA_PASSWORD')
+# # Load .env file if it exists for local development
+# load_dotenv()
 
-host, port, user, password = get_db_credentials()
-conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
+# def get_db_credentials():
+#     # Check if running on Cloud Foundry
+#     if 'VCAP_SERVICES' in os.environ:
+#         env = AppEnv()
+#         hana_service = env.get_service(label='hana')
+#         credentials = hana_service.credentials
+#         return credentials['host'], credentials['port'], credentials['user'], credentials['password']
+#     else:
+#         # Load credentials from .env file or environment for local development
+#         return os.getenv('HANA_HOST'), os.getenv('HANA_PORT'), os.getenv('HANA_USER'), os.getenv('HANA_PASSWORD')
 
-def fetch_python_functions():
-    with conn.cursor() as cursor:
-        cursor.execute("SELECT SkillName, PythonFunction FROM Skills")
-        return cursor.fetchall()
+# host, port, user, password = get_db_credentials()
+# conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
 
-def extract_and_run_imports(func_code):
-    # Regular expression to match import statements
-    import_re = r'^\s*(from\s+[^\s]+\s+import\s+[^\s]+|import\s+[^\s]+)'
+# def fetch_python_functions():
+#     with conn.cursor() as cursor:
+#         cursor.execute("SELECT SkillName, PythonFunction FROM Skills")
+#         return cursor.fetchall()
 
-    # Find all import statements in the function code
-    imports = re.findall(import_re, func_code, re.MULTILINE)
+# def extract_and_run_imports(func_code):
+#     # Regular expression to match import statements
+#     import_re = r'^\s*(from\s+[^\s]+\s+import\s+[^\s]+|import\s+[^\s]+)'
 
-    for import_statement in imports:
-        print(import_statement)
-        try:
-            exec(import_statement)
-        except Exception as e:
-            print(f"Failed to import: {import_statement}. Error: {e}")
+#     # Find all import statements in the function code
+#     imports = re.findall(import_re, func_code, re.MULTILINE)
 
-def initialize_functions():
-    functions = fetch_python_functions()
-    for _, func_code in functions:
-        # Extract and run import statements
-        extract_and_run_imports(func_code)
+#     for import_statement in imports:
+#         print("Import statement of functions:", import_statement, end='\n\n\n')
+#         try:
+#             exec(import_statement)
+#         except Exception as e:
+#             print(f"Failed to import: {import_statement}. Error: {e}")
 
-        # Then execute the function code
-        try:
-            exec(func_code, globals())
-        except Exception as e:
-            print(f"Failed to execute function code. Error: {e}")
+# def initialize_functions():
+#     functions = fetch_python_functions()
+#     for _, func_code in functions:
+#         # Extract and run import statements
+#         extract_and_run_imports(func_code)    
+        
+#         # Then execute the function code
+#         try:
+#             exec(func_code, globals())
+#             # if _ in globals():
+#             #     print(f"Function {_} is loaded. it's code is: {func_code}")
+#             # else:
+#             #     print(f"Function {_} is not loaded.")    
+#         except Exception as e:
+#             print(f"Failed to execute function code. Error: {e}")
 
-    # Functions are now loaded into the global scope
-initialize_functions()
+#     # Functions are now loaded into the global scope
+# initialize_functions()
 
 # import json
 # import requests

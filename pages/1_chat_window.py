@@ -5,34 +5,14 @@ from openai import OpenAI
 import time
 import json
 import pandas as pd
-# from octo_packages.functions import get_current_weather, get_fieldglass_approvals
 import requests
-import importlib
 from cfenv import AppEnv
 from hdbcli import dbapi
-from dotenv import load_dotenv
+import re
 
-# Assuming functions are in 'octo_packages.functions'
-functions_module = importlib.import_module("octo_packages.functions")
-
-## for the lovely logs, to be removed later. list all functions imported
-import inspect
-# List all functions in the module
-functions_list = [f for f in dir(functions_module) if callable(getattr(functions_module, f)) and inspect.isfunction(getattr(functions_module, f))]
-print("Loaded functions:", functions_list)
-
-# App title
-st.set_page_config(page_title="Enterprise Assistant", page_icon="💎")
-
-# Load environment variables
+# Load .env file if it exists for local development
 load_dotenv()
 
-# Load sap_credentials (not pushed to github but exposed in cloud foundry until we switch to CF env vars)
-# Read the API key from the file
-with open('.sap_credentials', 'r') as file:
-    sap_api_key = file.read().strip()
-
-## get HANA connection in to pull skills and build tools
 def get_db_credentials():
     # Check if running on Cloud Foundry
     if 'VCAP_SERVICES' in os.environ:
@@ -47,6 +27,49 @@ def get_db_credentials():
 host, port, user, password = get_db_credentials()
 conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
 
+def fetch_python_functions():
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT SkillName, PythonFunction FROM Skills")
+        return cursor.fetchall()
+
+def extract_and_run_imports(func_code):
+    # Regular expression to match import statements
+    import_re = r'^\s*(from\s+[^\s]+\s+import\s+[^\s]+|import\s+[^\s]+)'
+
+    # Find all import statements in the function code
+    imports = re.findall(import_re, func_code, re.MULTILINE)
+
+    for import_statement in imports:
+        print("Import statement of functions:", import_statement, end='\n\n\n')
+        try:
+            exec(import_statement)
+        except Exception as e:
+            print(f"Failed to import: {import_statement}. Error: {e}")
+
+def initialize_functions():
+    functions = fetch_python_functions()
+    for _, func_code in functions:
+        # Extract and run import statements
+        extract_and_run_imports(func_code)    
+        
+        # Then execute the function code
+        try:
+            exec(func_code, globals())
+            # if _ in globals():
+            #     print(f"Function {_} is loaded. it's code is: {func_code}")
+            # else:
+            #     print(f"Function {_} is not loaded.")    
+        except Exception as e:
+            print(f"Failed to execute function code. Error: {e}")
+
+    # Functions are now loaded into the global scope
+initialize_functions()
+
+# Load sap_credentials (not pushed to github but exposed in cloud foundry until we switch to CF env vars)
+# Read the API key from the file
+with open('.sap_credentials', 'r') as file:
+    sap_api_key = file.read().strip()
+
 # get skills data to build tools
 def fetch_skill_details():
     try:
@@ -56,6 +79,9 @@ def fetch_skill_details():
     except Exception as e:
         print(f"An error occurred: {e}")
         return []
+
+# App title
+st.set_page_config(page_title="Enterprise Assistant", page_icon="💎")
 
 # Start of the Streamlit sidebar
 with st.sidebar:
@@ -105,7 +131,7 @@ else:
 if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state:
     
     skill_details = fetch_skill_details()
-    print(skill_details)
+    print("Loaded skills: ", skill_details, end='\n\n')
     tools = [{"type": "code_interpreter"}]  # Starting with the code interpreter tool
 
     for skill_name, skill_description, parameters in skill_details:
@@ -122,11 +148,10 @@ if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state
                 "name": skill_name,
                 "description": skill_description,
                 "parameters": parameters_data
-            }
-    }
-    tools.append(tool)
+            }}
+        tools.append(tool)
 
-    print(tools)
+    print("Loaded tools: ", tools, end='\n\n')
 
     # Create an assistant and a thread
     assistant = client.beta.assistants.create(
@@ -174,7 +199,7 @@ if 'initialized' not in st.session_state:
 # 
 def wait_on_run(run, thread_id):
     while run.status in ["queued", "in_progress"]:
-        print(run.status)
+        print("Run status: ", run.status, end='\n\n')
         run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
         time.sleep(0.2)
 
@@ -184,18 +209,45 @@ def wait_on_run(run, thread_id):
             for tool in tools_to_call:
                 tool_call_id = tool.id
                 function_name = tool.function.name
-                print(function_name)
+                print("Selected tools: ", function_name, end='\n\n')
+                print("Tools arguments: ", json.loads(tool.function.arguments), end='\n\n\n')
 
-                # Call the appropriate function based on the function name
-                if function_name == "get_current_weather":
+            # Call the appropriate function dynamically based on the function name
+            import types
+
+            # Iterate over all items in the global namespace
+            for name, obj in globals().items():
+                # Check if the object is a function
+                if isinstance(obj, types.FunctionType):
+                    print(name)
+        
+            function_to_call = globals().get(function_name)
+            print("Function as string: ", function_to_call , end='\n\n\n')
+
+            if function_to_call:
+                # Check if the function expects the SAP API key
+                if 'sap_api_key' in function_to_call.__code__.co_varnames:
+                    # Check if tool function arguments are not empty
+                    if tool.function.arguments:
+                        function_args = json.loads(tool.function.arguments)
+                        # If the function requires the SAP API key and has additional arguments
+                        output = function_to_call(sap_api_key, **function_args)
+                        print("Output with sap key and tool arguments: ", output , end='\n\n\n')
+                    else:
+                        # If the function requires only the SAP API key
+                        output = function_to_call(sap_api_key)
+                        print("Output with just sap api key: ", output , end='\n\n\n')
+
+                else:
+                    # If the function does not require the SAP API key
                     function_args = json.loads(tool.function.arguments)
-                    output = get_current_weather(**function_args)
-                elif function_name == "get_fieldglass_approvals":
-                    output = get_fieldglass_approvals(sap_api_key)
-                    print(output)
-                elif function_name == "get_fieldglass_data":
-                    output = get_fieldglass_approvals(sap_api_key)
-                    print(output)
+                    output = function_to_call(**function_args)
+                    print("Output with just tool arguments: ", output , end='\n\n\n')
+                
+                print(f"Output of {function_name}: ", output, end='\n\n')
+
+            else:
+                print(f"Function {function_name} not found.")
 
                 # Ensure the output is a JSON string
                 if not isinstance(output, str):
