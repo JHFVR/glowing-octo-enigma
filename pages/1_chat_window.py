@@ -9,6 +9,7 @@ import requests
 from cfenv import AppEnv
 from hdbcli import dbapi
 import re
+from datetime import datetime
 
 # Load .env file if it exists for local development
 load_dotenv()
@@ -199,63 +200,53 @@ if 'initialized' not in st.session_state:
 # 
 def wait_on_run(run, thread_id):
     while run.status in ["queued", "in_progress"]:
-        print("Run status: ", run.status, end='\n\n')
+        # Get the current time and format it as a string
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        print("Run status: ", run.status, "at", timestamp, end='\n\n')
         run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
         time.sleep(0.2)
 
         if run.status == "requires_action":
             tools_to_call = run.required_action.submit_tool_outputs.tool_calls
             tool_output_array = []
+
             for tool in tools_to_call:
                 tool_call_id = tool.id
                 function_name = tool.function.name
                 print("Selected tools: ", function_name, end='\n\n')
                 print("Tools arguments: ", json.loads(tool.function.arguments), end='\n\n\n')
 
-            # Call the appropriate function dynamically based on the function name
-            import types
+                function_to_call = globals().get(function_name)
+                print("Function as string: ", function_to_call , end='\n\n\n')
 
-            # Iterate over all items in the global namespace
-            for name, obj in globals().items():
-                # Check if the object is a function
-                if isinstance(obj, types.FunctionType):
-                    print(name)
-        
-            function_to_call = globals().get(function_name)
-            print("Function as string: ", function_to_call , end='\n\n\n')
+                # Initialize output
+                output = None
 
-            if function_to_call:
-                # Check if the function expects the SAP API key
-                if 'sap_api_key' in function_to_call.__code__.co_varnames:
-                    # Check if tool function arguments are not empty
-                    if tool.function.arguments:
-                        function_args = json.loads(tool.function.arguments)
-                        # If the function requires the SAP API key and has additional arguments
-                        output = function_to_call(sap_api_key, **function_args)
-                        print("Output with sap key and tool arguments: ", output , end='\n\n\n')
-                    else:
-                        # If the function requires only the SAP API key
-                        output = function_to_call(sap_api_key)
-                        print("Output with just sap api key: ", output , end='\n\n\n')
+                if function_to_call:
+                    try:
+                        if 'sap_api_key' in function_to_call.__code__.co_varnames:
+                            function_args = json.loads(tool.function.arguments) if tool.function.arguments else {}
+                            output = function_to_call(sap_api_key, **function_args)
+                        else:
+                            function_args = json.loads(tool.function.arguments) if tool.function.arguments else {}
+                            output = function_to_call(**function_args)
+                    except Exception as e:
+                        print(f"Error executing {function_name}: {e}")
+                        output = {"error": str(e)}
+
+                    print(f"Output of {function_name}: ", output, end='\n\n')
 
                 else:
-                    # If the function does not require the SAP API key
-                    function_args = json.loads(tool.function.arguments)
-                    output = function_to_call(**function_args)
-                    print("Output with just tool arguments: ", output , end='\n\n\n')
-                
-                print(f"Output of {function_name}: ", output, end='\n\n')
-
-            else:
-                print(f"Function {function_name} not found.")
+                    print(f"Function {function_name} not found.")
+                    output = {"error": f"Function {function_name} not found"}
 
                 # Ensure the output is a JSON string
                 if not isinstance(output, str):
                     output = json.dumps(output)
 
-                if output:
-                    tool_output_array.append({"tool_call_id": tool_call_id, "output": output})
-
+                # Append the output to the tool_output_array
+                tool_output_array.append({"tool_call_id": tool_call_id, "output": output})
 
             # Submit the tool outputs
             run = client.beta.threads.runs.submit_tool_outputs(
@@ -263,7 +254,6 @@ def wait_on_run(run, thread_id):
                 run_id=run.id,
                 tool_outputs=tool_output_array
             )
-
     return run
 
 # User-provided prompt
