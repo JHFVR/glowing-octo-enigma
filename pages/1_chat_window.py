@@ -5,7 +5,7 @@ from openai import OpenAI
 import time
 import json
 import pandas as pd
-from octo_packages.functions import get_current_weather, get_fieldglass_approvals
+# from octo_packages.functions import get_current_weather, get_fieldglass_approvals
 import requests
 import importlib
 from cfenv import AppEnv
@@ -184,12 +184,16 @@ def wait_on_run(run, thread_id):
             for tool in tools_to_call:
                 tool_call_id = tool.id
                 function_name = tool.function.name
+                print(function_name)
 
                 # Call the appropriate function based on the function name
                 if function_name == "get_current_weather":
                     function_args = json.loads(tool.function.arguments)
                     output = get_current_weather(**function_args)
                 elif function_name == "get_fieldglass_approvals":
+                    output = get_fieldglass_approvals(sap_api_key)
+                    print(output)
+                elif function_name == "get_fieldglass_data":
                     output = get_fieldglass_approvals(sap_api_key)
                     print(output)
 

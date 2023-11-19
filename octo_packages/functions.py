@@ -36,6 +36,7 @@ def extract_and_run_imports(func_code):
     imports = re.findall(import_re, func_code, re.MULTILINE)
 
     for import_statement in imports:
+        print(import_statement)
         try:
             exec(import_statement)
         except Exception as e:
