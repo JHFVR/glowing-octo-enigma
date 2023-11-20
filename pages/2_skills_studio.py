@@ -4,32 +4,48 @@ import streamlit as st
 from cfenv import AppEnv
 from hdbcli import dbapi
 from dotenv import load_dotenv
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load .env file if it exists for local development
 load_dotenv()
 
 def get_db_credentials():
+    logging.info("Fetching database credentials")
     # Check if running on Cloud Foundry
     if 'VCAP_SERVICES' in os.environ:
+        logging.info("Running on Cloud Foundry")
         env = AppEnv()
         hana_service = env.get_service(label='hana')
         credentials = hana_service.credentials
         return credentials['host'], credentials['port'], credentials['user'], credentials['password']
     else:
+        logging.info("Running locally")
         # Load credentials from .env file or environment for local development
         return os.getenv('HANA_HOST'), os.getenv('HANA_PORT'), os.getenv('HANA_USER'), os.getenv('HANA_PASSWORD')
 
 host, port, user, password = get_db_credentials()
-conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
+
+try:
+    conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
+    logging.info("Database connection established successfully")
+except Exception as e:
+    logging.error(f"Database connection failed: {e}")
 
 # Fetch data from the database 
 def fetch_data():
-    with conn.cursor() as cursor:
-        cursor.execute("SELECT * FROM Skills")
-        columns = [desc[0] for desc in cursor.description]  # This will capture column names
-        data = cursor.fetchall()
-        df = pd.DataFrame(data, columns=columns)
-        return df
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT * FROM Skills")
+            columns = [desc[0] for desc in cursor.description]  # This will capture column names
+            data = cursor.fetchall()
+            df = pd.DataFrame(data, columns=columns)
+            return df
+    except Exception as e:
+        logging.error(f"Error fetching data: {e}")
+        return pd.DataFrame()
 
 def insert_skill_data(skill_name, skill_description, parameters, python_function):
     try:
@@ -40,8 +56,10 @@ def insert_skill_data(skill_name, skill_description, parameters, python_function
             """
             cursor.execute(insert_query, (skill_name, skill_description, parameters, python_function))
             conn.commit()  # Important to commit the transaction
+            logging.info("Skill added successfully")
             return "Skill added successfully!"
     except Exception as e:
+        logging.error(f"Error inserting skill data: {e}")
         return f"An error occurred: {e}"
 
 def delete_skill_data(skill_name):
@@ -50,27 +68,26 @@ def delete_skill_data(skill_name):
             delete_query = "DELETE FROM Skills WHERE SkillName = ?"
             cursor.execute(delete_query, (skill_name,))
             conn.commit()
+            logging.info("Skill deleted successfully")
             return "Skill deleted successfully!"
     except Exception as e:
+        logging.error(f"Error deleting skill data: {e}")
         return f"An error occurred: {e}"
 
 def fetch_function_names():
     try:
         with conn.cursor() as cursor:
-            # Assuming your skills are stored in a column named 'SkillName' in the 'Skills' table
             cursor.execute("SELECT SkillName FROM Skills")
             result = cursor.fetchall()
-            # Extract skill names from query results
             function_names = [row[0] for row in result]
             return function_names
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logging.error(f"Error fetching function names: {e}")
         return []
     
 def update_skills_backup():
     try:
         with conn.cursor() as cursor:
-            # SQL statement to insert new records from SKILLS into SKILLS_BACKUP
             update_query = """
             INSERT INTO SKILLS_BACKUP
             SELECT * FROM SKILLS
@@ -78,8 +95,10 @@ def update_skills_backup():
             """
             cursor.execute(update_query)
             conn.commit()
+            logging.info("SKILLS_BACKUP table updated successfully")
             return "SKILLS_BACKUP table updated successfully with new skills."
     except Exception as e:
+        logging.error(f"Error updating SKILLS_BACKUP: {e}")
         return f"An error occurred while updating SKILLS_BACKUP: {e}"
     
 # Streamlit app
@@ -98,6 +117,7 @@ else:
 # Add Skill Button and Form
 st.text("")
 st.markdown('💉 Inject more skills into my brain')
+
 with st.expander("➕ Add Skill"):
     with st.form("add_skill_form"):
         # Skill Name with inline explanation
@@ -143,14 +163,16 @@ with st.expander("➕ Add Skill"):
         submit_button = st.form_submit_button("Submit")
 
         if submit_button:
+            logging.info(f"Attempting to add skill: {skill_name}")
             result = insert_skill_data(skill_name, skill_description, parameters, python_function)
             if result.startswith("Skill added successfully"):
                 st.success(result)
-                # Update the SKILLS_BACKUP table with the new skill
                 backup_update_result = update_skills_backup()
                 st.info(backup_update_result)
+                logging.info(f"Skill {skill_name} added and backup updated successfully")
             else:
                 st.error(result)
+                logging.error(f"Error adding skill {skill_name}: {result}")
 
 # Dropdown for deleting a skill
 st.text("")
@@ -159,12 +181,10 @@ st.markdown('🪦 Take a skill 6ft under')
 function_names = fetch_function_names()
 selected_function = st.selectbox("Select a function to delete", function_names)
 
-# Initialize a key in session state to track delete confirmation
 if 'confirm_delete' not in st.session_state:
     st.session_state.confirm_delete = False
 
 if st.button("Delete Function"):
-    # User has requested to delete a function, ask for confirmation
     st.session_state.confirm_delete = True
 
 if st.session_state.confirm_delete:
@@ -173,9 +193,11 @@ if st.session_state.confirm_delete:
     if col1.button("Yes, delete it"):
         delete_result = delete_skill_data(selected_function)
         st.write(delete_result)
-        st.session_state.confirm_delete = False  # Reset the confirmation flag
+        st.session_state.confirm_delete = False
+        logging.info(f"Function {selected_function} deleted: {delete_result}")
     if col2.button("No, cancel"):
-        st.session_state.confirm_delete = False  # Reset the confirmation flag
+        st.session_state.confirm_delete = False
 
 # Close the database connection
 conn.close()
+logging.info("Database connection closed")

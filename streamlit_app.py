@@ -27,6 +27,7 @@ show_pages(
 )
 
 # some more info
+st.markdown('In this app you can test the OpenAI Assistant APIs in action. You can also look up all the skills (tools) that are available and add/delete yourself. The app is built with Streamlit and can run both locally and on CloudFoundry at this point. The skills are stored in a HANA Cloud schema.')
 
 st.markdown('<br><br>', unsafe_allow_html=True)
 
