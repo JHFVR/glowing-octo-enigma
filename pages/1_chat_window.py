@@ -212,7 +212,8 @@ def wait_on_run(run, thread_id):
     while run.status in ["queued", "in_progress"]:
         # Log the run status with current timestamp
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        logging.info(f"Run status: {run.status} at {timestamp}")
+        # logging.info(f"Run status: {run.status} at {timestamp}")
+        # print("heres the status", run.status[:10])
 
         run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
         time.sleep(0.2)
@@ -225,10 +226,10 @@ def wait_on_run(run, thread_id):
                 tool_call_id = tool.id
                 function_name = tool.function.name
                 logging.info(f"Selected tool: {function_name}")
-                logging.debug(f"Tool arguments: {json.loads(tool.function.arguments)}")
+                logging.info(f"Tool arguments: {json.loads(tool.function.arguments)}")
 
                 function_to_call = globals().get(function_name)
-                logging.debug(f"Function as string: {function_to_call}")
+                logging.info(f"Function as string: {function_to_call}")
 
                 # Initialize output
                 output = None
@@ -236,6 +237,8 @@ def wait_on_run(run, thread_id):
                 if function_to_call:
                     try:
                         function_args = json.loads(tool.function.arguments) if tool.function.arguments else {}
+                        logging.info(f"Function arguments: {function_args}")
+                        
                         if 'sap_api_key' in function_to_call.__code__.co_varnames:
                             output = function_to_call(sap_api_key, **function_args)
                         else:
@@ -244,12 +247,11 @@ def wait_on_run(run, thread_id):
                         logging.error(f"Error executing {function_name}: {e}")
                         output = {"error": str(e)}
 
-                    logging.info(f"Output of {function_name}: {output[:100]}")
+                    logging.info(f"Output of {function_name}")
 
-
-                else:
-                    logging.warning(f"Function {function_name} not found")
-                    output = {"error": f"Function {function_name} not found"}
+                # else:
+                #     logging.warning(f"Function {function_name} not found")
+                #     output = {"error": f"Function {function_name} not found"}
 
                 # Ensure the output is a JSON string
                 if not isinstance(output, str):
