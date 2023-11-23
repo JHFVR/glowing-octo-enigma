@@ -12,28 +12,39 @@ import re
 from datetime import datetime
 import logging
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s:%(message)s')
+# Define a new logging level
+CUSTOM_INFO_LEVEL_NUM = 25
+logging.addLevelName(CUSTOM_INFO_LEVEL_NUM, "LOGGING")
+
+def custom_logger(self, message, *args, **kws):
+    if self.isEnabledFor(CUSTOM_INFO_LEVEL_NUM):
+        # Yes, logger takes its '*args' as 'args'.
+        self._log(CUSTOM_INFO_LEVEL_NUM, message, args, **kws) 
+
+# Add the new method to Logger class
+logging.Logger.custom_logger = custom_logger
+logging.basicConfig(level=CUSTOM_INFO_LEVEL_NUM)
+logger = logging.getLogger(__name__)
 
 # Load .env file if it exists for local development
 load_dotenv()
 
 def get_db_credentials():
-    logging.info("Retrieving database credentials")
+    logger.custom_logger("Retrieving database credentials")
     if 'VCAP_SERVICES' in os.environ:
-        logging.info("Running on Cloud Foundry - fetching credentials from VCAP_SERVICES")
+        logger.custom_logger("Running on Cloud Foundry - fetching credentials from VCAP_SERVICES")
         env = AppEnv()
         hana_service = env.get_service(label='hana')
         credentials = hana_service.credentials
         return credentials['host'], credentials['port'], credentials['user'], credentials['password']
     else:
-        logging.info("Running locally - fetching credentials from environment")
+        logger.custom_logger("Running locally - fetching credentials from environment")
         return os.getenv('HANA_HOST'), os.getenv('HANA_PORT'), os.getenv('HANA_USER'), os.getenv('HANA_PASSWORD')
 
 host, port, user, password = get_db_credentials()
 try:
     conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
-    logging.info("Successfully connected to the database")
+    logger.custom_logger("Successfully connected to the database")
 except Exception as e:
     logging.error(f"Failed to connect to the database. Error: {e}")
 
@@ -47,7 +58,7 @@ def extract_and_run_imports(func_code):
     imports = re.findall(import_re, func_code, re.MULTILINE)
 
     for import_statement in imports:
-        logging.info(f"Executing import statement: {import_statement}")
+        logger.custom_logger(f"Executing import statement: {import_statement}")
         try:
             exec(import_statement)
         except Exception as e:
@@ -70,7 +81,7 @@ initialize_functions()
 try:
     with open('.sap_credentials', 'r') as file:
         sap_api_key = file.read().strip()
-    logging.info("SAP API key loaded successfully")
+    logger.custom_logger("SAP API key loaded successfully")
 except Exception as e:
     logging.error(f"Error loading SAP API key: {e}")
 
@@ -86,7 +97,6 @@ def fetch_skill_details():
 # App title
 st.set_page_config(page_title="Enterprise Assistant", page_icon="💎")
 
-
 # Start of the Streamlit sidebar
 with st.sidebar:
     # Streamlit UI setup for title
@@ -99,10 +109,9 @@ with st.sidebar:
 
     # Check if running in a Cloud Foundry environment
     if 'VCAP_SERVICES' in os.environ or 'VCAP_APPLICATION' in os.environ:
-        logging.info("Running in a Cloud Foundry environment")
-        if 'OPENAI_API_KEY' in os.environ:
+        logger.custom_logger("Running in a Cloud Foundry environment")
+        if 'openai_api_key' in st.session_state:
             st.success('OpenAI API key already provided!', icon='✅')
-            st.session_state.openai_api_key = os.environ['OPENAI_API_KEY']
         else:
             openai_api_key = st.text_input('Enter OpenAI API key:', type='password')
             if openai_api_key:
@@ -111,10 +120,11 @@ with st.sidebar:
             else:
                 st.warning('Please enter your API key!', icon='⚠️')
     else:
-        logging.info("Running in a non-Cloud Foundry environment")
+        logger.custom_logger("Running in a non-Cloud Foundry environment")
         if 'OPENAI_API_KEY' in os.environ:
             st.success('OpenAI API key already provided!', icon='✅')
             openai_api_key = os.environ['OPENAI_API_KEY']
+            st.session_state.openai_api_key = openai_api_key
         else:
             openai_api_key = st.text_input('Enter OpenAI API key:', type='password')
             if not openai_api_key:
@@ -124,11 +134,10 @@ with st.sidebar:
                     f.write(f'OPENAI_API_KEY={openai_api_key}\n')
                 st.success('API key stored. Proceed to chat!', icon='👉')
 
-
 # Initialize OpenAI client with the API key from session state
 if 'openai_api_key' in st.session_state:
     client = OpenAI(api_key=st.session_state['openai_api_key'])
-    logging.info("OpenAI client initialized with API key from session state")
+    logger.custom_logger("OpenAI client initialized with API key from session state")
 else:
     client = OpenAI()  # Initialize without an API key
     logging.warning("OpenAI client initialized without an API key")
@@ -137,7 +146,7 @@ else:
 if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state:
     
     skill_details = fetch_skill_details()
-    logging.info(f"Loaded skills: {skill_details}")
+    logger.custom_logger(f"Loaded skills: {skill_details}")
 
     tools = [{"type": "code_interpreter"}]  # Starting with the code interpreter tool
 
@@ -159,7 +168,7 @@ if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state
             }}
         tools.append(tool)
 
-    logging.info(f"Loaded tools: {tools}")
+    logger.custom_logger(f"Loaded tools: {tools}")
 
     try:
         # Create an assistant and a thread
@@ -218,14 +227,13 @@ def wait_on_run(run, thread_id):
 
     while run.status in ["queued", "in_progress"]:
         # Log the run status with current timestamp
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         # st.info(f"Run status: {run.status} at {timestamp}")
 
-        # logging.info(f"Run status: {run.status} at {timestamp}")
+        # logger.custom_logger(f"Run status: {run.status} at {timestamp}")
         # print("heres the status", run.status[:10])
 
         run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-        time.sleep(0.2)
 
         if run.status == "requires_action":
             tools_to_call = run.required_action.submit_tool_outputs.tool_calls
@@ -234,11 +242,11 @@ def wait_on_run(run, thread_id):
             for tool in tools_to_call:
                 tool_call_id = tool.id
                 function_name = tool.function.name
-                logging.info(f"Selected tool: {function_name}")
-                logging.info(f"Tool arguments: {json.loads(tool.function.arguments)}")
+                logger.custom_logger(f"Selected tool: {function_name}")
+                logger.custom_logger(f"Tool arguments: {json.loads(tool.function.arguments)}")
 
                 function_to_call = globals().get(function_name)
-                logging.info(f"Function as string: {function_to_call}")
+                logger.custom_logger(f"Function as string: {function_to_call}")
 
                 # Initialize output
                 output = None
@@ -246,7 +254,7 @@ def wait_on_run(run, thread_id):
                 if function_to_call:
                     try:
                         function_args = json.loads(tool.function.arguments) if tool.function.arguments else {}
-                        logging.info(f"Function arguments: {function_args}")
+                        logger.custom_logger(f"Function arguments: {function_args}")
                         
                         if 'sap_api_key' in function_to_call.__code__.co_varnames:
                             output = function_to_call(sap_api_key, **function_args)
@@ -256,7 +264,7 @@ def wait_on_run(run, thread_id):
                         logging.error(f"Error executing {function_name}: {e}")
                         output = {"error": str(e)}
 
-                    logging.info(f"Output of {function_name}")
+                    logger.custom_logger(f"Output of {function_name}")
 
                 # else:
                 #     logging.warning(f"Function {function_name} not found")
