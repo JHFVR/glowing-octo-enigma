@@ -86,6 +86,7 @@ def fetch_skill_details():
 # App title
 st.set_page_config(page_title="Enterprise Assistant", page_icon="💎")
 
+
 # Start of the Streamlit sidebar
 with st.sidebar:
     # Streamlit UI setup for title
@@ -122,6 +123,7 @@ with st.sidebar:
                 with open('.env', 'a') as f:
                     f.write(f'OPENAI_API_KEY={openai_api_key}\n')
                 st.success('API key stored. Proceed to chat!', icon='👉')
+
 
 # Initialize OpenAI client with the API key from session state
 if 'openai_api_key' in st.session_state:
@@ -180,28 +182,31 @@ else:
     thread_id = st.session_state.thread_id
 
 def display_messages(thread_id):
-    try:
-        thread_messages = client.beta.threads.messages.list(thread_id).data
-        # Reverse the order of messages for display
-        thread_messages.reverse()
-        # Clear previous messages (if any)
-        if 'message_display' in st.session_state:
-            for container in st.session_state.message_display:
-                container.empty()
-        st.session_state.message_display = []
-        for message in thread_messages:
-            role = message.role
-            for content_item in message.content:
-                message_text = content_item.text.value
-                # Store each message container in session state
-                container = st.container()
-                with container:
-                    with st.chat_message(role, avatar='https://raw.githubusercontent.com/JHFVR/jle/main/jle_blue.svg' if role == "assistant" else None):
-                        st.write(message_text)
-                st.session_state.message_display.append(container)
-    except Exception as e:
-        logging.error(f"Error displaying messages: {e}")
-        
+        try:
+            
+            thread_messages = client.beta.threads.messages.list(thread_id).data
+            # Reverse the order of messages for display
+            thread_messages.reverse()
+            # Clear previous messages (if any)
+            if 'message_display' in st.session_state:
+                for container in st.session_state.message_display:
+                    container.empty()
+            
+            st.session_state.message_display = []
+
+            for message in thread_messages:
+                role = message.role
+                for content_item in message.content:
+                    message_text = content_item.text.value
+                    # Store each message container in session state
+                    container = st.container()
+                    with container:
+                        with st.chat_message(role, avatar='https://raw.githubusercontent.com/JHFVR/jle/main/jle_blue.svg' if role == "assistant" else None):
+                            st.write(message_text)
+                    st.session_state.message_display.append(container)
+        except Exception as e:
+            logging.error(f"Error displaying messages: {e}")
+            
 # Display an initial greeting message
 if 'initialized' not in st.session_state:
     with st.chat_message("assistant", avatar='https://raw.githubusercontent.com/JHFVR/jle/main/jle_blue.svg'):
@@ -209,9 +214,13 @@ if 'initialized' not in st.session_state:
     st.session_state.initialized = False
 
 def wait_on_run(run, thread_id):
+
+
     while run.status in ["queued", "in_progress"]:
         # Log the run status with current timestamp
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # st.info(f"Run status: {run.status} at {timestamp}")
+
         # logging.info(f"Run status: {run.status} at {timestamp}")
         # print("heres the status", run.status[:10])
 
