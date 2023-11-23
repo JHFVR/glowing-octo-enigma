@@ -8,6 +8,18 @@ from st_pages import Page, show_pages, add_page_title
 # App title
 st.set_page_config(page_title="Enterprise Assistant", page_icon="💎", layout = 'wide', initial_sidebar_state = 'auto')
 
+# Initialize session state for page tracking (need that to properly refresh the chat box when i switch pages)
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = None
+
+if 'previous_page' not in st.session_state:
+    st.session_state.previous_page = None
+
+# Update the previous page to the current one, and set the current page as "Chat Window"
+st.session_state.previous_page = st.session_state.current_page
+st.session_state.current_page = "Home"
+
+## now that freakin sidebar
 with st.sidebar:
     st.sidebar.success("Select a window above.")
     st.markdown('<br><br>', unsafe_allow_html=True)

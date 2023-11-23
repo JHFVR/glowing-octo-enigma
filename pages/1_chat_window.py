@@ -97,6 +97,17 @@ def fetch_skill_details():
 # App title
 st.set_page_config(page_title="Enterprise Assistant", page_icon="💎")
 
+# Initialize session state for page tracking (need that to properly refresh the chat box when i switch pages)
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = None
+
+if 'previous_page' not in st.session_state:
+    st.session_state.previous_page = None
+
+# Update the previous page to the current one, and set the current page as "Chat Window"
+st.session_state.previous_page = st.session_state.current_page
+st.session_state.current_page = "chat_window"
+
 # Start of the Streamlit sidebar
 with st.sidebar:
     # Streamlit UI setup for title
@@ -128,6 +139,7 @@ with st.sidebar:
             st.session_state.openai_api_key = openai_api_key
         else:
             openai_api_key = st.text_input('Enter OpenAI API key:', type='password')
+            st.session_state.openai_api_key = openai_api_key
             if not openai_api_key:
                 st.warning('Please enter your API key!', icon='⚠️')
             else:
@@ -135,13 +147,17 @@ with st.sidebar:
                     f.write(f'OPENAI_API_KEY={openai_api_key}\n')
                 st.success('API key stored. Proceed to chat!', icon='👉')
 
+# Initialize a flag to indicate whether the app should proceed
+proceed_with_app = True
+
 # Initialize OpenAI client with the API key from session state
-if 'openai_api_key' in st.session_state:
+if 'openai_api_key' in st.session_state and st.session_state['openai_api_key']:
     client = OpenAI(api_key=st.session_state['openai_api_key'])
     logger.custom_logger("OpenAI client initialized with API key from session state")
 else:
-    client = OpenAI()  # Initialize without an API key
-    logging.warning("OpenAI client initialized without an API key")
+    st.error('OpenAI API key is required to proceed.')  # Show an error message in the app
+    logger.custom_logger("OpenAI client initialization skipped due to missing API key")
+    proceed_with_app = False  # Set the flag to False as we cannot proceed without the API key
 
 # Check if assistant and thread are already created
 if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state:
@@ -192,31 +208,45 @@ else:
     thread_id = st.session_state.thread_id
 
 def display_messages(thread_id):
-        try:
-            
-            thread_messages = client.beta.threads.messages.list(thread_id).data
-            # Reverse the order of messages for display
-            thread_messages.reverse()
-            # Clear previous messages (if any)
-            if 'message_display' in st.session_state:
-                for container in st.session_state.message_display:
-                    container.empty()
-            
-            st.session_state.message_display = []
+    try:
+        # Fetch messages from the thread
+        thread_messages = client.beta.threads.messages.list(thread_id).data
+        thread_messages.reverse()  # Reverse the order for display
 
-            for message in thread_messages:
-                role = message.role
-                for content_item in message.content:
-                    message_text = content_item.text.value
-                    # Store each message container in session state
-                    container = st.container()
-                    with container:
-                        with st.chat_message(role, avatar='https://raw.githubusercontent.com/JHFVR/jle/main/jle_blue.svg' if role == "assistant" else None):
-                            st.write(message_text)
-                    st.session_state.message_display.append(container)
-        except Exception as e:
-            logging.error(f"Error displaying messages: {e}")
-            
+        # Initialize the message list in session state if not present
+        if 'message_history' not in st.session_state:
+            st.session_state.message_history = []
+
+        # Process and display each message
+        for message in thread_messages:
+            role = message.role
+            message_id = message.id
+            message_content = message.content[0].text.value if message.content else ""
+
+            # Construct a unique identifier for the message
+            unique_message_id = f"{message_id}-{role}"
+
+            # Check if the message is already in the history
+            if unique_message_id not in [msg['id'] for msg in st.session_state.message_history]:
+                # Store new message in session state
+                st.session_state.message_history.append({
+                    "id": unique_message_id,
+                    "role": role,
+                    "content": message_content
+                })
+
+        # Display messages from session state
+        for msg in st.session_state.message_history:
+            with st.chat_message(msg['role'], avatar='https://raw.githubusercontent.com/JHFVR/jle/main/jle_blue.svg' if msg['role'] == "assistant" else None):
+                st.write(msg['content'])
+
+    except Exception as e:
+        logging.error(f"Error displaying messages: {e}")
+
+# Only call display_messages if coming from a different page
+if st.session_state.previous_page != "chat_window":
+    display_messages(st.session_state.thread_id)
+
 # Display an initial greeting message
 if 'initialized' not in st.session_state:
     with st.chat_message("assistant", avatar='https://raw.githubusercontent.com/JHFVR/jle/main/jle_blue.svg'):

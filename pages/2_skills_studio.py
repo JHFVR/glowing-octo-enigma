@@ -106,6 +106,18 @@ st.title('Find, add and delete skills here')
 st.text("")
 st.markdown('➡️ Scroll right to see more details of each skill')
 
+# Initialize session state for page tracking (need that to properly refresh the chat box when i switch pages)
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = None
+
+if 'previous_page' not in st.session_state:
+    st.session_state.previous_page = None
+
+# Update the previous page to the current one, and set the current page as "Chat Window"
+# if st.session_state.current_page != "skill_studio":
+st.session_state.previous_page = st.session_state.current_page
+st.session_state.current_page = "skill_studio"
+
 # Fetch and display the data
 data = fetch_data()
 if not data.empty:
