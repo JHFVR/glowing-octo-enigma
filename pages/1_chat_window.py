@@ -112,6 +112,7 @@ with st.sidebar:
         logger.custom_logger("Running in a Cloud Foundry environment")
         if 'openai_api_key' in st.session_state:
             st.success('OpenAI API key already provided!', icon='✅')
+            openai_api_key = st.session_state.openai_api_key
         else:
             openai_api_key = st.text_input('Enter OpenAI API key:', type='password')
             if openai_api_key:
