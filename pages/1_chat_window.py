@@ -108,6 +108,11 @@ if 'previous_page' not in st.session_state:
 st.session_state.previous_page = st.session_state.current_page
 st.session_state.current_page = "chat_window"
 
+# Initialize a state variable for process status
+if 'process_status' not in st.session_state:
+    st.session_state.process_status = None
+    st.session_state.process_status_before = None
+
 # Start of the Streamlit sidebar
 with st.sidebar:
     # Streamlit UI setup for title
@@ -146,7 +151,17 @@ with st.sidebar:
                 with open('.env', 'a') as f:
                     f.write(f'OPENAI_API_KEY={openai_api_key}\n')
                 st.success('API key stored. Proceed to chat!', icon='👉')
-
+    # # Check if there's a process status to display
+    # if st.session_state.process_status != st.session_state.process_status_before :
+    #     # Display the toast notification
+    #     st.session_state.process_status_before = st.session_state.process_status
+    #     st.info(st.session_state.process_status, icon="ℹ️")
+    #     time.sleep(5)
+    #     # Optionally, reset the process status after showing the toast
+    #     st.session_state.process_status = None
+    ## screw this i give up streaming the logs..
+    # st.info(st.session_state.process_status)
+        
 # Initialize a flag to indicate whether the app should proceed
 proceed_with_app = True
 
@@ -255,20 +270,23 @@ if 'initialized' not in st.session_state:
 
 def wait_on_run(run, thread_id):
 
-
     while run.status in ["queued", "in_progress"]:
-        # Log the run status with current timestamp
-        # timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # st.info(f"Run status: {run.status} at {timestamp}")
 
         # logger.custom_logger(f"Run status: {run.status} at {timestamp}")
         # print("heres the status", run.status[:10])
 
         run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
 
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.process_status = f'Status {run.status} at {timestamp}'
+        logger.custom_logger(st.session_state.process_status)
+
         if run.status == "requires_action":
             tools_to_call = run.required_action.submit_tool_outputs.tool_calls
             tool_output_array = []
+
+            st.session_state.process_status = f'Status {run.status}'
+            logger.custom_logger(st.session_state.process_status)
 
             for tool in tools_to_call:
                 tool_call_id = tool.id
