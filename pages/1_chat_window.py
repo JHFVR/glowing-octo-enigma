@@ -11,8 +11,6 @@ from hdbcli import dbapi
 import re
 from datetime import datetime
 import logging
-import python_weather
-import asyncio
 
 # Define a new logging level
 CUSTOM_INFO_LEVEL_NUM = 25
