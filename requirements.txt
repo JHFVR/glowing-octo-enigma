@@ -8,3 +8,5 @@ cfenv
 requests
 importlib
 datetime
+python_weather
+asyncio

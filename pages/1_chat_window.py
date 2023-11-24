@@ -11,6 +11,8 @@ from hdbcli import dbapi
 import re
 from datetime import datetime
 import logging
+import python_weather
+import asyncio
 
 # Define a new logging level
 CUSTOM_INFO_LEVEL_NUM = 25
@@ -76,7 +78,7 @@ def initialize_functions():
 # Functions are now loaded into the global scope
 initialize_functions()
 
-# Load sap_credentials (not pushed to github but exposed in cloud foundry until we switch to CF env vars)
+# Load sap_credentials & weather (not pushed to github but exposed in cloud foundry until we switch to CF env vars)
 # Read the API key from the file
 try:
     with open('.sap_credentials', 'r') as file:
@@ -84,6 +86,14 @@ try:
     logger.custom_logger("SAP API key loaded successfully")
 except Exception as e:
     logging.error(f"Error loading SAP API key: {e}")
+
+try:
+    with open('.weather_credentials', 'r') as file:
+        weather_api_key = file.read().strip()
+    logger.custom_logger("Weather API key loaded successfully")
+except Exception as e:
+    logging.error(f"Error loading Weather API key: {e}")
+
 
 def fetch_skill_details():
     try:
@@ -307,6 +317,8 @@ def wait_on_run(run, thread_id):
                         
                         if 'sap_api_key' in function_to_call.__code__.co_varnames:
                             output = function_to_call(sap_api_key, **function_args)
+                        if 'weather_api_key' in function_to_call.__code__.co_varnames:
+                            output = function_to_call(weather_api_key, **function_args)
                         else:
                             output = function_to_call(**function_args)
                     except Exception as e:

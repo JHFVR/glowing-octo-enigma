@@ -2,3 +2,4 @@
 .DS_Store
 .vscode/settings.json
 .sap_credentials
+.weather_credentials

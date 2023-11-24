@@ -5,6 +5,8 @@ from cfenv import AppEnv
 from hdbcli import dbapi
 from dotenv import load_dotenv
 import logging
+import python_weather
+import asyncio
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
