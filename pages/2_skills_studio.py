@@ -8,23 +8,34 @@ import logging
 import python_weather
 import asyncio
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Define a new logging level
+CUSTOM_INFO_LEVEL_NUM = 25
+logging.addLevelName(CUSTOM_INFO_LEVEL_NUM, "LOGGING")
+
+def custom_logger(self, message, *args, **kws):
+    if self.isEnabledFor(CUSTOM_INFO_LEVEL_NUM):
+        # Yes, logger takes its '*args' as 'args'.
+        self._log(CUSTOM_INFO_LEVEL_NUM, message, args, **kws) 
+
+# Add the new method to Logger class
+logging.Logger.custom_logger = custom_logger
+logging.basicConfig(level=CUSTOM_INFO_LEVEL_NUM)
+logger = logging.getLogger(__name__)
 
 # Load .env file if it exists for local development
 load_dotenv()
 
 def get_db_credentials():
-    logging.info("Fetching database credentials")
+    logger.custom_logger("Fetching database credentials")
     # Check if running on Cloud Foundry
     if 'VCAP_SERVICES' in os.environ:
-        logging.info("Running on Cloud Foundry")
+        logger.custom_logger("Running on Cloud Foundry")
         env = AppEnv()
         hana_service = env.get_service(label='hana')
         credentials = hana_service.credentials
         return credentials['host'], credentials['port'], credentials['user'], credentials['password']
     else:
-        logging.info("Running locally")
+        logger.custom_logger("Running locally")
         # Load credentials from .env file or environment for local development
         return os.getenv('HANA_HOST'), os.getenv('HANA_PORT'), os.getenv('HANA_USER'), os.getenv('HANA_PASSWORD')
 
@@ -32,7 +43,7 @@ host, port, user, password = get_db_credentials()
 
 try:
     conn = dbapi.connect(address=host, port=int(port), user=user, password=password)
-    logging.info("Database connection established successfully")
+    logger.custom_logger("Database connection established successfully")
 except Exception as e:
     logging.error(f"Database connection failed: {e}")
 
@@ -58,7 +69,7 @@ def insert_skill_data(skill_name, skill_description, parameters, python_function
             """
             cursor.execute(insert_query, (skill_name, skill_description, parameters, python_function))
             conn.commit()  # Important to commit the transaction
-            logging.info("Skill added successfully")
+            logger.custom_logger("Skill added successfully")
             return "Skill added successfully!"
     except Exception as e:
         logging.error(f"Error inserting skill data: {e}")
@@ -70,7 +81,7 @@ def delete_skill_data(skill_name):
             delete_query = "DELETE FROM Skills WHERE SkillName = ?"
             cursor.execute(delete_query, (skill_name,))
             conn.commit()
-            logging.info("Skill deleted successfully")
+            logger.custom_logger("Skill deleted successfully")
             return "Skill deleted successfully!"
     except Exception as e:
         logging.error(f"Error deleting skill data: {e}")
@@ -97,7 +108,7 @@ def update_skills_backup():
             """
             cursor.execute(update_query)
             conn.commit()
-            logging.info("SKILLS_BACKUP table updated successfully")
+            logger.custom_logger("SKILLS_BACKUP table updated successfully")
             return "SKILLS_BACKUP table updated successfully with new skills."
     except Exception as e:
         logging.error(f"Error updating SKILLS_BACKUP: {e}")
@@ -177,13 +188,13 @@ with st.expander("➕ Add Skill"):
         submit_button = st.form_submit_button("Submit")
 
         if submit_button:
-            logging.info(f"Attempting to add skill: {skill_name}")
+            logger.custom_logger(f"Attempting to add skill: {skill_name}")
             result = insert_skill_data(skill_name, skill_description, parameters, python_function)
             if result.startswith("Skill added successfully"):
                 st.success(result)
                 backup_update_result = update_skills_backup()
                 st.info(backup_update_result)
-                logging.info(f"Skill {skill_name} added and backup updated successfully")
+                logger.custom_logger(f"Skill {skill_name} added and backup updated successfully")
             else:
                 st.error(result)
                 logging.error(f"Error adding skill {skill_name}: {result}")
@@ -208,10 +219,10 @@ if st.session_state.confirm_delete:
         delete_result = delete_skill_data(selected_function)
         st.write(delete_result)
         st.session_state.confirm_delete = False
-        logging.info(f"Function {selected_function} deleted: {delete_result}")
+        logger.custom_logger(f"Function {selected_function} deleted: {delete_result}")
     if col2.button("No, cancel"):
         st.session_state.confirm_delete = False
 
 # Close the database connection
 conn.close()
-logging.info("Database connection closed")
+logger.custom_logger("Database connection closed")
