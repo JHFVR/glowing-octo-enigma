@@ -148,26 +148,32 @@ with st.sidebar:
         </h1>
         """, unsafe_allow_html=True)
 
-    # Check if running in a Cloud Foundry environment
     if 'VCAP_SERVICES' in os.environ or 'VCAP_APPLICATION' in os.environ:
         logger.custom_logger("Running in a Cloud Foundry environment")
         if 'openai_api_key' in st.session_state:
             st.success('OpenAI API key here, checking if it works!', icon='✅')
             openai_api_key = st.session_state.openai_api_key
-            if test_openai_api_key(st.session_state.openai_api_key):
-                st.success('Dope, the OpenAI API works!', icon='✅')
+            if test_openai_api_key(openai_api_key):
+                st.success('Dope, the OpenAI API key still works!', icon='✅')
                 client = OpenAI(api_key=openai_api_key)
                 logger.custom_logger("OpenAI client initialized with API key from session state")
+            else:
+                st.error('Invalid OpenAI API key. Please enter a correct key!', icon='⚠️')
+                st.stop()
         else:
             openai_api_key = st.text_input('Enter OpenAI API key:', type='password')
-            st.session_state.openai_api_key = openai_api_key
-            if test_openai_api_key(st.session_state.openai_api_key):
+            if openai_api_key:
                 st.session_state.openai_api_key = openai_api_key
-                st.success('API key stored in session for Cloud Foundry!', icon='👉')
-                client = OpenAI(api_key=openai_api_key)
-                logger.custom_logger("OpenAI client initialized with API key in session state")
+                if test_openai_api_key(openai_api_key):
+                    st.success('API key stored in session for Cloud Foundry and validated!', icon='👉')
+                    client = OpenAI(api_key=openai_api_key)
+                    logger.custom_logger("OpenAI client initialized with API key in session state")
+                else:
+                    st.error('Invalid OpenAI API key. Please enter a correct key!', icon='⚠️')
+                    st.stop()
             else:
-                st.warning('Please enter a correct API key!', icon='⚠️')
+                st.info('Waiting for API key input...', icon='ℹ️')
+                st.stop()
     else:
         logger.custom_logger("Running in a non-Cloud Foundry environment")
         if 'OPENAI_API_KEY' in os.environ:
@@ -189,6 +195,7 @@ with st.sidebar:
                 logger.custom_logger("OpenAI client initialized with API key in session state")
             else:
                 st.warning('Please enter a correct API key!', icon='⚠️')
+                logger.custom_logger("OpenAI api key wrong")
 
 # Check if assistant and thread are already created
 if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state:
@@ -224,7 +231,7 @@ if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state
             name="Streamlit Jewel",
             instructions="Your name is Jewel. You are a second brain and a helpful assistant running within enterprise software. A person will ask you a question and you will provide a helpful answer. Write the answer in the same language as the question. If you don't know the answer, just say that you don't know. Don't try to make up an answer. Concise answers, no harmful language or unethical replies.",
             tools=tools,
-            model="gpt-4-1106-preview"
+            model="gpt-3.5-turbo-1106"
         )
         thread = client.beta.threads.create()
 
