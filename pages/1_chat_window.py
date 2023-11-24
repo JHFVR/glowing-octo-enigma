@@ -315,7 +315,7 @@ def wait_on_run(run, thread_id):
                         
                         if 'sap_api_key' in function_to_call.__code__.co_varnames:
                             output = function_to_call(sap_api_key, **function_args)
-                        if 'weather_api_key' in function_to_call.__code__.co_varnames:
+                        elif 'weather_api_key' in function_to_call.__code__.co_varnames:
                             output = function_to_call(weather_api_key, **function_args)
                         else:
                             output = function_to_call(**function_args)
