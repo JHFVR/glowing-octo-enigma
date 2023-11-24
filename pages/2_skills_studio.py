@@ -5,8 +5,6 @@ from cfenv import AppEnv
 from hdbcli import dbapi
 from dotenv import load_dotenv
 import logging
-import python_weather
-import asyncio
 
 # Define a new logging level
 CUSTOM_INFO_LEVEL_NUM = 25
