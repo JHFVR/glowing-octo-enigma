@@ -121,6 +121,23 @@ if 'process_status' not in st.session_state:
     st.session_state.process_status = None
     st.session_state.process_status_before = None
 
+def test_openai_api_key(api_key):
+    try:
+        # Initialize a temporary OpenAI client with the provided API key
+        temp_client = OpenAI(api_key=api_key)
+        
+        # Make a lightweight API call, such as listing available models
+        response = temp_client.models.list()
+        
+        # If the call succeeds, the API key is valid
+        return True
+        print('openai api key ok')
+    except Exception as e:
+        # If the call fails, the API key is likely invalid
+        logging.error(f"OpenAI API key validation failed: {e}")
+        return False
+        print('openai api key not there')
+        
 # Start of the Streamlit sidebar
 with st.sidebar:
     # Streamlit UI setup for title
@@ -135,52 +152,43 @@ with st.sidebar:
     if 'VCAP_SERVICES' in os.environ or 'VCAP_APPLICATION' in os.environ:
         logger.custom_logger("Running in a Cloud Foundry environment")
         if 'openai_api_key' in st.session_state:
-            st.success('OpenAI API key already provided!', icon='✅')
+            st.success('OpenAI API key here, checking if it works!', icon='✅')
             openai_api_key = st.session_state.openai_api_key
+            if test_openai_api_key(st.session_state.openai_api_key):
+                st.success('Dope, the OpenAI API works!', icon='✅')
+                client = OpenAI(api_key=openai_api_key)
+                logger.custom_logger("OpenAI client initialized with API key from session state")
         else:
             openai_api_key = st.text_input('Enter OpenAI API key:', type='password')
-            if openai_api_key:
+            st.session_state.openai_api_key = openai_api_key
+            if test_openai_api_key(st.session_state.openai_api_key):
                 st.session_state.openai_api_key = openai_api_key
-                st.success('API key stored in session for Cloud Foundry. Proceed to chat!', icon='👉')
+                st.success('API key stored in session for Cloud Foundry!', icon='👉')
+                client = OpenAI(api_key=openai_api_key)
+                logger.custom_logger("OpenAI client initialized with API key in session state")
             else:
-                st.warning('Please enter your API key!', icon='⚠️')
+                st.warning('Please enter a correct API key!', icon='⚠️')
     else:
         logger.custom_logger("Running in a non-Cloud Foundry environment")
         if 'OPENAI_API_KEY' in os.environ:
-            st.success('OpenAI API key already provided!', icon='✅')
+            st.success('OpenAI API key here, will check if it works!', icon='✅')
             openai_api_key = os.environ['OPENAI_API_KEY']
             st.session_state.openai_api_key = openai_api_key
+            if test_openai_api_key(st.session_state.openai_api_key):
+                st.success('Dope, the OpenAI API works!', icon='✅')
+                client = OpenAI(api_key=openai_api_key)
+                logger.custom_logger("OpenAI client initialized with API key from session state")
         else:
             openai_api_key = st.text_input('Enter OpenAI API key:', type='password')
             st.session_state.openai_api_key = openai_api_key
-            if not openai_api_key:
-                st.warning('Please enter your API key!', icon='⚠️')
-            else:
+            if test_openai_api_key(st.session_state.openai_api_key):
                 with open('.env', 'a') as f:
                     f.write(f'OPENAI_API_KEY={openai_api_key}\n')
-                st.success('API key stored. Proceed to chat!', icon='👉')
-    # # Check if there's a process status to display
-    # if st.session_state.process_status != st.session_state.process_status_before :
-    #     # Display the toast notification
-    #     st.session_state.process_status_before = st.session_state.process_status
-    #     st.info(st.session_state.process_status, icon="ℹ️")
-    #     time.sleep(5)
-    #     # Optionally, reset the process status after showing the toast
-    #     st.session_state.process_status = None
-    ## screw this i give up streaming the logs..
-    # st.info(st.session_state.process_status)
-        
-# Initialize a flag to indicate whether the app should proceed
-proceed_with_app = True
-
-# Initialize OpenAI client with the API key from session state
-if 'openai_api_key' in st.session_state and st.session_state['openai_api_key']:
-    client = OpenAI(api_key=st.session_state['openai_api_key'])
-    logger.custom_logger("OpenAI client initialized with API key from session state")
-else:
-    st.error('OpenAI API key is required to proceed.')  # Show an error message in the app
-    logger.custom_logger("OpenAI client initialization skipped due to missing API key")
-    proceed_with_app = False  # Set the flag to False as we cannot proceed without the API key
+                st.success('Valid API key stored!', icon='👉')
+                client = OpenAI(api_key=openai_api_key)
+                logger.custom_logger("OpenAI client initialized with API key in session state")
+            else:
+                st.warning('Please enter a correct API key!', icon='⚠️')
 
 # Check if assistant and thread are already created
 if 'assistant_id' not in st.session_state or 'thread_id' not in st.session_state:
@@ -342,10 +350,10 @@ def wait_on_run(run, thread_id):
                 run_id=run.id,
                 tool_outputs=tool_output_array
             )
-    return run
+    return run  
 
 # User-provided prompt
-if prompt := st.chat_input(disabled=not openai_api_key):
+if prompt := st.chat_input(disabled=not test_openai_api_key(st.session_state.openai_api_key)):
 
     # Post user message
     user_message = client.beta.threads.messages.create(
